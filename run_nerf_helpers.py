@@ -11,7 +11,7 @@ import json
 def img2mse(x, y): return tf.reduce_mean(tf.square(x - y))
 
 
-def mse2psnr(x): return -10.*tf.log(x)/tf.log(10.)
+def mse2psnr(x): return -10.*tf.math.log(x)/tf.math.log(10.)
 
 
 def to8b(x): return (255*np.clip(x, 0, 1)).astype(np.uint8)
@@ -77,10 +77,15 @@ def get_embedder(multires, i=0):
 
 # Model architecture
 
+use_fp16=False
+
 def init_nerf_model(D=8, W=256, input_ch=3, input_ch_views=3, output_ch=4, skips=[4], use_viewdirs=False):
 
-    relu = tf.keras.layers.ReLU()
+    relu = tf.nn.relu
     def dense(W, act=relu): return tf.keras.layers.Dense(W, activation=act)
+    if use_fp16:
+        policy = tf.keras.mixed_precision.Policy('mixed_float16')
+        tf.keras.mixed_precision.set_global_policy(policy)
 
     print('MODEL', input_ch, input_ch_views, type(
         input_ch), type(input_ch_views), use_viewdirs)
@@ -94,26 +99,29 @@ def init_nerf_model(D=8, W=256, input_ch=3, input_ch_views=3, output_ch=4, skips
 
     print(inputs.shape, inputs_pts.shape, inputs_views.shape)
     outputs = inputs_pts
+    #outputs = tf.cast(outputs, tf.float16)
+    #inputs_pts = tf.cast(inputs_pts, tf.float16)
     for i in range(D):
         outputs = dense(W)(outputs)
         if i in skips:
-            outputs = tf.concat([inputs_pts, outputs], -1)
-
+            #outputs = tf.concat([inputs_pts, outputs], -1)
+            outputs = tf.keras.layers.Concatenate()([inputs_pts, outputs])
     if use_viewdirs:
         alpha_out = dense(1, act=None)(outputs)
         bottleneck = dense(256, act=None)(outputs)
-        inputs_viewdirs = tf.concat(
-            [bottleneck, inputs_views], -1)  # concat viewdirs
+        #inputs_viewdirs = tf.concat([bottleneck, inputs_views], -1)  # concat viewdirs
+        inputs_viewdirs = tf.keras.layers.Concatenate()([bottleneck, inputs_views])  # concat viewdirs
         outputs = inputs_viewdirs
         # The supplement to the paper states there are 4 hidden layers here, but this is an error since
         # the experiments were actually run with 1 hidden layer, so we will leave it as 1.
         for i in range(1):
             outputs = dense(W//2)(outputs)
         outputs = dense(3, act=None)(outputs)
-        outputs = tf.concat([outputs, alpha_out], -1)
+        #outputs = tf.concat([outputs, alpha_out], -1)
+        outputs = tf.keras.layers.Concatenate()([outputs, alpha_out])
     else:
         outputs = dense(output_ch, act=None)(outputs)
-
+    outputs = tf.cast(outputs, tf.float32)
     model = tf.keras.Model(inputs=inputs, outputs=outputs)
     return model
 

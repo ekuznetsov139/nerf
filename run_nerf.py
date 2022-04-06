@@ -44,7 +44,7 @@ def run_network(inputs, viewdirs, fn, embed_fn, embeddirs_fn, netchunk=1024*64):
         inputs.shape[:-1]) + [outputs_flat.shape[-1]])
     return outputs
 
-
+#@tf.function(jit_compile=True)
 def render_rays(ray_batch,
                 network_fn,
                 network_query_fn,
@@ -750,9 +750,9 @@ def train():
     print('VAL views are', i_val)
 
     # Summary writers
-    writer = tf.contrib.summary.create_file_writer(
+    writer = tf.summary.create_file_writer(
         os.path.join(basedir, 'summaries', expname))
-    writer.set_as_default()
+    writer.set_as_default(step=0)
 
     for i in range(start, N_iters):
         time0 = time.time()
@@ -875,12 +875,12 @@ def train():
 
             print(expname, i, psnr.numpy(), loss.numpy(), global_step.numpy())
             print('iter time {:.05f}'.format(dt))
-            with tf.contrib.summary.record_summaries_every_n_global_steps(args.i_print):
-                tf.contrib.summary.scalar('loss', loss)
-                tf.contrib.summary.scalar('psnr', psnr)
-                tf.contrib.summary.histogram('tran', trans)
-                if args.N_importance > 0:
-                    tf.contrib.summary.scalar('psnr0', psnr0)
+            #with tf.compat.v1.summary.record_summaries_every_n_global_steps(args.i_print):
+            tf.compat.v1.summary.scalar('loss', loss)
+            tf.compat.v1.summary.scalar('psnr', psnr)
+            tf.compat.v1.summary.histogram('tran', trans)
+            if args.N_importance > 0:
+                tf.compat.v1.summary.scalar('psnr0', psnr0)
 
             if i % args.i_img == 0:
 
@@ -900,27 +900,27 @@ def train():
                     os.makedirs(testimgdir, exist_ok=True)
                 imageio.imwrite(os.path.join(testimgdir, '{:06d}.png'.format(i)), to8b(rgb))
 
-                with tf.contrib.summary.record_summaries_every_n_global_steps(args.i_img):
+                #with tf.compat.v1.summary.record_summaries_every_n_global_steps(args.i_img):
+                """
+                tf.compat.v1.summary.image('rgb', to8b(rgb)[tf.newaxis])
+                tf.compat.v1.summary.image(
+                    'disp', disp[tf.newaxis, ..., tf.newaxis])
+                tf.compat.v1.summary.image(
+                    'acc', acc[tf.newaxis, ..., tf.newaxis])
 
-                    tf.contrib.summary.image('rgb', to8b(rgb)[tf.newaxis])
-                    tf.contrib.summary.image(
-                        'disp', disp[tf.newaxis, ..., tf.newaxis])
-                    tf.contrib.summary.image(
-                        'acc', acc[tf.newaxis, ..., tf.newaxis])
-
-                    tf.contrib.summary.scalar('psnr_holdout', psnr)
-                    tf.contrib.summary.image('rgb_holdout', target[tf.newaxis])
+                tf.compat.v1.summary.scalar('psnr_holdout', psnr)
+                tf.compat.v1.summary.image('rgb_holdout', target[tf.newaxis])
 
                 if args.N_importance > 0:
 
-                    with tf.contrib.summary.record_summaries_every_n_global_steps(args.i_img):
-                        tf.contrib.summary.image(
+                    with tf.compat.v1.summary.record_summaries_every_n_global_steps(args.i_img):
+                        tf.compat.v1.summary.image(
                             'rgb0', to8b(extras['rgb0'])[tf.newaxis])
-                        tf.contrib.summary.image(
+                        tf.compat.v1.summary.image(
                             'disp0', extras['disp0'][tf.newaxis, ..., tf.newaxis])
-                        tf.contrib.summary.image(
+                        tf.compat.v1.summary.image(
                             'z_std', extras['z_std'][tf.newaxis, ..., tf.newaxis])
-
+                """
         global_step.assign_add(1)
 
 
